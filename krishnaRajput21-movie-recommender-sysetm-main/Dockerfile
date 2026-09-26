@@ -2,17 +2,23 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-
+# System dependencies install karna
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 
-COPY requirements_v2.txt* requirements.txt* ./
+COPY requirements_v2.txt* ./
+COPY requirements.txt* ./
+
+
 RUN if [ -f requirements_v2.txt ]; then pip install --no-cache-dir -r requirements_v2.txt; \
     elif [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; \
     fi
+
+
+RUN pip install --no-cache-dir uvicorn streamlit fastapi chromadb sentence-transformers
 
 
 COPY . .
