@@ -1,5 +1,10 @@
 import streamlit as st
 import requests
+import time
+
+# Hugging Face par backend aur frontend ek hi jagah chalenge, isliye localhost (127.0.0.1) use kar rahe hain
+BACKEND_BASE_URL = "http://127.0.0.1:8000"   
+API_URL = f"{BACKEND_BASE_URL}/recommend"
 
 st.set_page_config(
     page_title="Enterprise AI Movie Recommender",
@@ -28,12 +33,20 @@ def fetch_poster(movie_id):
         print(f"Error fetching poster: {e}")
     return None
 
-API_URL = "http://127.0.0.1:8000/recommend"
+def call_backend(params, retries=6, delay=8):
+    """Backend connection retry logic."""
+    last_error = None
+    for attempt in range(retries):
+        try:
+            return requests.get(API_URL, params=params, timeout=15)
+        except requests.exceptions.ConnectionError as e:
+            last_error = e
+            time.sleep(delay)
+    raise last_error
 
 st.sidebar.header("Search Settings")
 top_k = st.sidebar.slider("Number of Recommendations", min_value=1, max_value=10, value=5)
 
-# --- st.form: Enter dabane se hi submit ho jayega, alag button click zaroori nahi ---
 with st.form(key="search_form"):
     query = st.text_input(
         "Enter a Movie Name or Semantic Plot Description:",
@@ -45,9 +58,9 @@ if submitted:
     if not query.strip():
         st.warning("Please enter a movie title or plot description!")
     else:
-        with st.spinner("Fetching Real Movie Posters from TMDB..."):
+        with st.spinner("Finding best recommendations for you..."):
             try:
-                response = requests.get(API_URL, params={"query": query, "top_k": top_k})
+                response = call_backend({"query": query, "top_k": top_k})
 
                 if response.status_code == 200:
                     data = response.json()
@@ -60,9 +73,7 @@ if submitted:
                         for idx, item in enumerate(recommendations):
                             movie_id = item['movie_id']
                             title = item['title']
-
                             poster_url = fetch_poster(movie_id)
-
                             with cols[idx]:
                                 if poster_url:
                                     st.image(poster_url, use_container_width=True)
@@ -75,4 +86,4 @@ if submitted:
                     st.error(f"Backend Error: {response.json().get('detail', 'Unknown error')}")
 
             except requests.exceptions.ConnectionError:
-                st.error("❌ Cannot connect to FastAPI Backend! Make sure uvicorn server is running on port 8000.")
+                st.error("❌ Cannot connect to backend. Make sure the server is running.")
